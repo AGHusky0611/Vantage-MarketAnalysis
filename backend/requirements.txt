@@ -1,0 +1,22 @@
+# Vantage Backend Dependencies
+
+# Web Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Data & Finance
+yfinance==0.2.51
+pandas==2.2.3
+numpy==2.2.2
+
+# Sentiment Analysis (Phase 3)
+# transformers==4.47.1
+# torch==2.5.1
+vaderSentiment==3.3.2
+
+# Utilities
+python-dotenv==1.0.1
+httpx==0.28.1
+
+# CORS
+# (included with FastAPI/Starlette)
