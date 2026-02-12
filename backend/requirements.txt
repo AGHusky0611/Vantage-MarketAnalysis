@@ -1,3 +1,5 @@
+# Required for statsmodels build
+setuptools>=65.0.0
 # For ARIMA model
 statsmodels>=0.13.0
 # Vantage Backend Dependencies
