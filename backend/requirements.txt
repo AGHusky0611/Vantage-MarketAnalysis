@@ -1,12 +1,8 @@
-# Build tools (must be first for statsmodels)
-setuptools>=65.0.0
-wheel
-pip
-
-# Required for statsmodels build
-# For ARIMA model
-statsmodels>=0.13.0
 # Vantage Backend Dependencies
+
+# CRITICAL: Required for Python 3.12+ builds
+setuptools
+wheel
 
 # Web Framework
 fastapi==0.115.6
@@ -21,14 +17,9 @@ numpy==2.2.2
 pandas_ta>=0.3.14b0
 statsmodels>=0.13.0
 
-# Sentiment Analysis (Phase 3)
-# transformers==4.47.1
-# torch==2.5.1
+# Sentiment Analysis
 vaderSentiment==3.3.2
 
 # Utilities
 python-dotenv==1.0.1
 httpx==0.28.1
-
-# CORS
-# (included with FastAPI/Starlette)
