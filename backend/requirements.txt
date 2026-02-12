@@ -13,12 +13,11 @@ pydantic-settings>=2.0.0
 # Data & Finance
 yfinance>=0.2.52
 curl_cffi>=0.5.10
-# STABILITY FIX: Use Numpy 1.x to prevent build errors
+
+# STABILITY FIX: Pin exact versions to prevent compilation errors
 numpy==1.26.4
-# Unpin pandas to let it match the older numpy
-pandas
+pandas==2.2.3
 pandas_ta
-# Ensure we get a modern statsmodels that supports Python 3.12
 statsmodels>=0.14.0
 
 # Sentiment Analysis
