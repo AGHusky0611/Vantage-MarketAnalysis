@@ -6,62 +6,80 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 
-
 def get_stock_data(ticker: str, period: str = "1y", interval: str = "1d") -> dict:
     """
     Fetch OHLCV data and company metadata for a given ticker.
-
-    Args:
-        ticker: Stock symbol (e.g., "AAPL", "TSLA").
-        period: Data period - 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, max.
-        interval: Data interval - 1m, 5m, 15m, 30m, 1h, 1d, 1wk, 1mo.
-
-    Returns:
-        Dictionary with company info and OHLCV DataFrame.
+    Includes fallback logic to prevent 404s on servers.
     """
+    # 1. Create Ticker object
     stock = yf.Ticker(ticker)
 
-    # Fetch historical OHLCV data
-    hist: pd.DataFrame = stock.history(period=period, interval=interval)
+    # 2. Fetch historical OHLCV data with error handling
+    try:
+        hist: pd.DataFrame = stock.history(period=period, interval=interval)
+        
+        # FALLBACK LOGIC: If '1y' returns empty (common on servers), try '5d'
+        if hist.empty:
+            print(f"Warning: {period} data empty for {ticker}. Trying fallback to 5d.")
+            hist = stock.history(period="5d", interval=interval)
+            
+        # If STILL empty, then raise error
+        if hist.empty:
+            raise ValueError(f"No data found for '{ticker}'. Yahoo may be blocking requests or ticker is invalid.")
+            
+    except Exception as e:
+        raise ValueError(f"Yahoo Finance Error for {ticker}: {str(e)}")
 
-    if hist.empty:
-        raise ValueError(f"No data found for ticker '{ticker}'. Verify the symbol is correct.")
+    # 3. Get company info (gracefully handle missing fields)
+    try:
+        info = stock.info or {}
+    except:
+        info = {}
 
-    # Get company info (gracefully handle missing fields)
-    info = stock.info or {}
+    # 4. Safe data extraction
+    current_price = info.get("currentPrice")
+    if current_price is None:
+        if not hist.empty:
+            current_price = float(hist["Close"].iloc[-1])
+        else:
+            current_price = 0.0
+
+    previous_close = info.get("previousClose")
+    if previous_close is None:
+        if len(hist) > 1:
+            previous_close = float(hist["Close"].iloc[-2])
+        else:
+            previous_close = current_price
 
     return {
         "ticker": ticker.upper(),
         "company_name": info.get("shortName", info.get("longName", ticker.upper())),
-        "current_price": info.get("currentPrice", float(hist["Close"].iloc[-1])),
-        "previous_close": info.get("previousClose", float(hist["Close"].iloc[-2]) if len(hist) > 1 else 0),
+        "current_price": current_price,
+        "previous_close": previous_close,
         "history": hist,
     }
-
 
 def get_news_headlines(ticker: str, max_headlines: int = 10) -> list[str]:
     """
     Fetch recent news headlines for a ticker via yfinance.
-
-    Args:
-        ticker: Stock symbol.
-        max_headlines: Maximum number of headlines to return.
-
-    Returns:
-        List of headline strings.
     """
-    stock = yf.Ticker(ticker)
-    news = stock.news or []
+    try:
+        stock = yf.Ticker(ticker)
+        news = stock.news or []
 
-    headlines = []
-    for article in news[:max_headlines]:
-        # yfinance >= 1.0 nests title under "content"
-        content = article.get("content", {})
-        title = content.get("title", "") if isinstance(content, dict) else ""
-        # Fallback for older yfinance versions
-        if not title:
-            title = article.get("title", "")
-        if title:
-            headlines.append(title)
+        headlines = []
+        for article in news[:max_headlines]:
+            # yfinance >= 1.0 nests title under "content"
+            content = article.get("content", {})
+            title = content.get("title", "") if isinstance(content, dict) else ""
+            
+            # Fallback for older yfinance versions or different structures
+            if not title:
+                title = article.get("title", "")
+                
+            if title:
+                headlines.append(title)
 
-    return headlines
+        return headlines
+    except Exception:
+        return [] # Return empty list instead of crashing if news fails
