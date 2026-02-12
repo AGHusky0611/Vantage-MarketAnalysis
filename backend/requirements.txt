@@ -6,9 +6,13 @@ uvicorn[standard]==0.34.0
 pydantic-settings>=2.0.0
 
 # Data & Finance
-yfinance==0.2.51
+yfinance>=0.2.52
+requests>=2.31.0
 pandas==2.2.3
 numpy==2.2.2
+vaderSentiment==3.3.2
+python-dotenv==1.0.1
+httpx==0.28.1
 
 # Sentiment Analysis (Phase 3)
 # transformers==4.47.1
