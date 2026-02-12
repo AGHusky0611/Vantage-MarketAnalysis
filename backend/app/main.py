@@ -32,9 +32,17 @@ _origins = [
     "http://127.0.0.1:3000",
 ]
 
+# ── CORS Middleware ─────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=[
+        settings.frontend_url,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    # This regex matches https://ANYTHING.vercel.app
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
