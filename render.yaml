@@ -2,12 +2,12 @@ services:
   - type: web
     name: vantage-api
     runtime: python
-    repo: https://github.com/your-username/vantage-backend
+    repo: https://github.com/aghusky0611/vantage-marketanalysis # Verify this repo URL is correct for you
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: PYTHON_VERSION  # <--- ADD THIS
-        value: 3.11.9        # <--- ADD THIS
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: FRONTEND_URL
         sync: false
       - key: SUPABASE_URL
