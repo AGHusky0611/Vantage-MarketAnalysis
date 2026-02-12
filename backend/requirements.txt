@@ -18,7 +18,7 @@ yfinance>=0.2.52
 curl_cffi>=0.5.10
 pandas==2.2.3
 numpy==2.2.2
-pandas_ta>=0.3.14b0
+pandas_ta
 statsmodels>=0.13.0
 
 # Sentiment Analysis (Phase 3)
