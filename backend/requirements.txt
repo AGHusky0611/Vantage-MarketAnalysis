@@ -1,12 +1,9 @@
-# Build tools (must be first for statsmodels)
-setuptools>=65.0.0
+# Vantage Backend Dependencies
+
+# Build tools
+setuptools
 wheel
 pip
-
-# Required for statsmodels build
-# For ARIMA model
-statsmodels>=0.13.0
-# Vantage Backend Dependencies
 
 # Web Framework
 fastapi==0.115.6
@@ -16,19 +13,17 @@ pydantic-settings>=2.0.0
 # Data & Finance
 yfinance>=0.2.52
 curl_cffi>=0.5.10
-pandas==2.2.3
-numpy==2.2.2
+# STABILITY FIX: Use Numpy 1.x to prevent build errors
+numpy==1.26.4
+# Unpin pandas to let it match the older numpy
+pandas
 pandas_ta
-statsmodels>=0.13.0
+# Ensure we get a modern statsmodels that supports Python 3.12
+statsmodels>=0.14.0
 
-# Sentiment Analysis (Phase 3)
-# transformers==4.47.1
-# torch==2.5.1
+# Sentiment Analysis
 vaderSentiment==3.3.2
 
 # Utilities
 python-dotenv==1.0.1
 httpx==0.28.1
-
-# CORS
-# (included with FastAPI/Starlette)
