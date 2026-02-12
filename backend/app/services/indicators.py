@@ -5,7 +5,64 @@ Calculates SMA, Parabolic SAR, MACD, and OBV from OHLCV data.
 import pandas as pd
 import numpy as np
 from datetime import timedelta
+from statsmodels.tsa.arima.model import ARIMA
 from app.models.schemas import (
+    def _compute_arima_prediction(
+        close: pd.Series, dates: list[str],
+        lookback: int = 60, forecast_days: int = 30,
+    ) -> tuple[list[PredictionPoint], str, float | None]:
+        """
+        ARIMA-based price prediction.
+        Uses the last `lookback` days to project `forecast_days` into the future.
+        Returns the prediction points, direction, and target price.
+        """
+        if len(close) < lookback:
+            lookback = len(close)
+        if lookback < 10:
+            return [], "Neutral", None
+
+        # Use last `lookback` prices
+        recent = close.iloc[-lookback:]
+        # Fit ARIMA model (order can be tuned)
+        try:
+            model = ARIMA(recent, order=(1,1,1))
+            model_fit = model.fit()
+            forecast = model_fit.forecast(steps=forecast_days)
+        except Exception:
+            return [], "Neutral", None
+
+        # Direction based on last forecasted value vs last actual
+        if len(forecast) > 0:
+            last_actual = float(recent.iloc[-1])
+            last_forecast = float(forecast.iloc[-1])
+            if last_forecast > last_actual * 1.01:
+                direction = "Bullish"
+            elif last_forecast < last_actual * 0.99:
+                direction = "Bearish"
+            else:
+                direction = "Neutral"
+        else:
+            direction = "Neutral"
+
+        # Generate prediction points
+        last_date = pd.Timestamp(dates[-1])
+        prediction = []
+        # Anchor point
+        prediction.append(PredictionPoint(
+            date=dates[-1],
+            value=round(float(recent.iloc[-1]), 2),
+        ))
+        for i, value in enumerate(forecast):
+            future_date = last_date + timedelta(days=i+1)
+            while future_date.weekday() >= 5:
+                future_date += timedelta(days=1)
+            prediction.append(PredictionPoint(
+                date=str(future_date.date()),
+                value=round(float(value), 2),
+            ))
+
+        target = round(float(forecast.iloc[-1]), 2) if len(forecast) > 0 else None
+        return prediction, direction, target
     IndicatorSignals,
     ChartOverlays,
     OverlayPoint,
@@ -362,12 +419,16 @@ def calculate_overlays(hist: pd.DataFrame, is_intraday: bool = False) -> ChartOv
     # ── MACD lines ──────────────────────────────────────────────
     macd_data = _compute_macd_series(close, dates)
 
-    # ── Price Prediction (Linear Regression) ────────────────────
+
+    # ── Price Prediction (ARIMA) ────────────────────────────────
     # Skip prediction for intraday data (doesn't make sense on 5-min candles)
     if is_intraday:
         prediction, direction, target = [], "Neutral", None
     else:
-        prediction, direction, target = _compute_prediction(close, dates)
+        # Use ARIMA for prediction; fallback to linear regression if ARIMA fails
+        prediction, direction, target = _compute_arima_prediction(close, dates)
+        if not prediction:
+            prediction, direction, target = _compute_prediction(close, dates)
 
     return ChartOverlays(
         sma_50=sma_50,

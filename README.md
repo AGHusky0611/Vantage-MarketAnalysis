@@ -37,6 +37,16 @@ The backend processes live **OHLCV** (Open, High, Low, Close, Volume) data to ge
 | **Parabolic SAR**| Stop and Reverse dots                 | Dots flip below price (Entry)         | Dots flip above price (Exit)           |
 | **MACD**         | Moving Avg Convergence Divergence     | MACD crosses above Signal line        | MACD crosses below Signal line         |
 | **OBV**          | On-Balance Volume                     | Volume confirms price trend           | Divergence = weak / reversing trend    |
+| **ARIMA Forecast**| AutoRegressive Integrated Moving Average | Forecasted price trend is upward      | Forecasted price trend is downward     |
+#### ARIMA-Based Price Prediction
+
+Vantage now uses an ARIMA (AutoRegressive Integrated Moving Average) model for advanced price forecasting. The backend analyzes recent price data and projects future prices, providing:
+
+- **Forecasted price points** for the next 30 days (default)
+- **Prediction direction** (Bullish, Bearish, Neutral) based on the ARIMA trend
+- **Fallback to linear regression** if ARIMA cannot fit the data
+
+This enables more robust and data-driven market predictions, supplementing traditional technical indicators.
 
 ### B. Sentiment Analysis (The "News Engine")
 
