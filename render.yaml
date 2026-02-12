@@ -1,22 +1,16 @@
-# Render Blueprint – Vantage Backend
-# https://render.com/docs/blueprint-spec
-
 services:
   - type: web
     name: vantage-api
     runtime: python
-    region: oregon
-    plan: free
-    rootDir: backend
+    repo: https://github.com/your-username/vantage-backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.12.0"
+      - key: PYTHON_VERSION  # <--- ADD THIS
+        value: 3.11.9        # <--- ADD THIS
       - key: FRONTEND_URL
-        sync: false          # you'll set this after deploying frontend
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
         sync: false
-    healthCheckPath: /health
