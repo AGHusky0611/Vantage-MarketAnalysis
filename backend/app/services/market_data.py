@@ -1,34 +1,18 @@
 """
 Vantage Backend - Market Data Service
 Fetches live OHLCV data and company info from Yahoo Finance via yfinance.
-Includes Anti-Blocking (User-Agent Spoofing) logic.
 """
 import yfinance as yf
 import pandas as pd
-import requests
 from datetime import datetime, timedelta
-
-def get_session():
-    """
-    Create a custom session to mimic a real Chrome browser.
-    This prevents Yahoo from blocking the request as a 'bot'.
-    """
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    })
-    return session
 
 def get_stock_data(ticker: str, period: str = "1y", interval: str = "1d") -> dict:
     """
     Fetch OHLCV data and company metadata for a given ticker.
-    Includes fallback logic and custom session handling.
+    Relies on yfinance internal handling (via curl_cffi) to avoid blocks.
     """
-    # 1. Create Ticker object with CUSTOM SESSION
-    session = get_session()
-    stock = yf.Ticker(ticker, session=session)
+    # 1. Create Ticker object (Let yfinance handle the session!)
+    stock = yf.Ticker(ticker)
 
     # 2. Fetch historical OHLCV data with error handling
     try:
@@ -57,8 +41,7 @@ def get_stock_data(ticker: str, period: str = "1y", interval: str = "1d") -> dic
     except:
         info = {}
 
-    # 4. Safe data extraction (Hybrid approach for different yfinance versions)
-    # Try to get price from history first (most reliable)
+    # 4. Safe data extraction
     current_price = 0.0
     previous_close = 0.0
     
@@ -69,9 +52,6 @@ def get_stock_data(ticker: str, period: str = "1y", interval: str = "1d") -> dic
         else:
             previous_close = float(hist["Open"].iloc[-1])
             
-    # Attempt to fill name from info
-    # Note: accessing .info triggers a separate web request, which might also fail.
-    # We use a default name if it fails.
     try:
         company_name = stock.info.get("shortName", ticker.upper())
     except:
@@ -90,8 +70,8 @@ def get_news_headlines(ticker: str, max_headlines: int = 10) -> list[str]:
     Fetch recent news headlines for a ticker via yfinance.
     """
     try:
-        session = get_session()
-        stock = yf.Ticker(ticker, session=session)
+        # Let yfinance handle the session
+        stock = yf.Ticker(ticker)
         news = stock.news or []
 
         headlines = []
