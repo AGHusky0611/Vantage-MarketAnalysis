@@ -3,7 +3,7 @@
 # Web Framework
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-pydantic-settings>=2.0.0  <-- ADD THIS LINE
+pydantic-settings>=2.0.0
 
 # Data & Finance
 yfinance==0.2.51
