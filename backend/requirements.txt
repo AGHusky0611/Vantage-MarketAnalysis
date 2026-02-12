@@ -1,5 +1,9 @@
-# Required for statsmodels build
+# Build tools (must be first for statsmodels)
 setuptools>=65.0.0
+wheel
+pip
+
+# Required for statsmodels build
 # For ARIMA model
 statsmodels>=0.13.0
 # Vantage Backend Dependencies
