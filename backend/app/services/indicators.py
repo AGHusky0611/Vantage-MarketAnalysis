@@ -1,12 +1,18 @@
 """
 Vantage Backend - Technical Indicators Service
-Calculates SMA, MACD, RSI, OBV, and Bollinger Bands using pandas-ta.
+Calculates SMA, MACD, RSI, OBV, Bollinger Bands, and ARIMA Predictions.
 """
 import pandas as pd
 import pandas_ta as ta
 import numpy as np
 from datetime import datetime, timedelta
+# Import ARIMA for forecasting
+from statsmodels.tsa.arima.model import ARIMA
+import warnings
 from app.models.schemas import Indicators, ChartOverlays, OverlayPoint, MACDPoint, PredictionPoint
+
+# Suppress statsmodels warnings (they can clutter logs)
+warnings.filterwarnings("ignore")
 
 def calculate_indicators(
     hist: pd.DataFrame,
@@ -15,24 +21,19 @@ def calculate_indicators(
     """
     Calculate technical indicators and generate signals.
     """
-    # Create a copy to avoid SettingWithCopy warnings
     df = hist.copy()
 
     # 1. Calculate Indicators using pandas_ta
-    # SMA
     df['SMA_50'] = ta.sma(df['Close'], length=50)
     df['SMA_200'] = ta.sma(df['Close'], length=200)
-
-    # RSI
     df['RSI'] = ta.rsi(df['Close'], length=14)
 
-    # MACD
     macd = ta.macd(df['Close'])
     # pandas_ta column names: MACD_12_26_9, MACDh_12_26_9, MACDs_12_26_9
     df['MACD'] = macd['MACD_12_26_9']
     df['MACD_SIGNAL'] = macd['MACDs_12_26_9']
 
-    # Bollinger Bands
+    # Bollinger Bands (20, 2.0)
     bb = ta.bbands(df['Close'], length=20)
     df['BB_UPPER'] = bb['BBU_20_2.0']
     df['BB_LOWER'] = bb['BBL_20_2.0']
@@ -42,10 +43,7 @@ def calculate_indicators(
     
     # Parabolic SAR
     psar = ta.psar(df['High'], df['Low'], df['Close'])
-    # PSAR returns columns like 'PSARl_0.02_0.2' and 'PSARs_0.02_0.2'
-    # We combine them into one 'PSAR' column
-    psar_combined = psar.iloc[:, 0].combine_first(psar.iloc[:, 1])
-    df['PSAR'] = psar_combined
+    df['PSAR'] = psar.iloc[:, 0].combine_first(psar.iloc[:, 1])
 
     # 2. Get Latest Values
     latest = df.iloc[-1]
@@ -69,7 +67,6 @@ def calculate_indicators(
     # OBV Signal (Divergence Check)
     obv_signal = "NEUTRAL"
     obv_detail = "Volume confirms trend"
-    # Simple check: Is OBV trending with price?
     price_up = latest['Close'] > prev['Close']
     obv_up = latest['OBV'] > prev['OBV']
     
@@ -81,7 +78,6 @@ def calculate_indicators(
         obv_detail = "Price falling but volume rising (Strength)"
 
     # Parabolic SAR Signal
-    # If price is above SAR, it's an uptrend (dots below)
     sar_val = latest['PSAR']
     if latest['Close'] > sar_val:
         sar_signal = "BUY"
@@ -105,13 +101,13 @@ def calculate_indicators(
     else:
         comp_signal = "NEUTRAL"
 
-    # Adjust based on prediction direction (if provided)
+    # Adjust based on prediction direction (Arima Forecast)
     if prediction_direction == "Bullish" and comp_signal in ["BUY", "NEUTRAL"]:
         comp_signal = "STRONG BUY"
     elif prediction_direction == "Bearish" and comp_signal in ["SELL", "NEUTRAL"]:
         comp_signal = "STRONG SELL"
 
-    # Calculate Confidence (Simple heuristic)
+    # Calculate Confidence
     confidence = (score / 3) * 100
     if prediction_direction != "Neutral":
         confidence = min(confidence + 10, 95)
@@ -134,7 +130,7 @@ def calculate_overlays(
     is_intraday: bool = False
 ) -> ChartOverlays:
     """
-    Generate chart overlay data for the frontend.
+    Generate chart overlay data and run ARIMA prediction.
     """
     df = hist.copy()
     
@@ -153,7 +149,6 @@ def calculate_overlays(
     # Helper to format dates
     def format_date(idx):
         if is_intraday:
-            # Return Unix timestamp for intraday
             return int(idx.timestamp())
         else:
             return idx.strftime('%Y-%m-%d')
@@ -166,20 +161,12 @@ def calculate_overlays(
 
     for idx, row in df.iterrows():
         d_str = format_date(idx)
-        
-        # SMA 50
         if not pd.isna(row['SMA_50']):
             sma_50.append(OverlayPoint(date=str(d_str), value=row['SMA_50']))
-            
-        # SMA 200
         if not pd.isna(row['SMA_200']):
             sma_200.append(OverlayPoint(date=str(d_str), value=row['SMA_200']))
-            
-        # SAR
         if not pd.isna(row['PSAR']):
             sar.append(OverlayPoint(date=str(d_str), value=row['PSAR']))
-            
-        # MACD
         if not pd.isna(row['MACD']):
             macd_data.append(MACDPoint(
                 date=str(d_str),
@@ -188,36 +175,61 @@ def calculate_overlays(
                 histogram=row['MACD_HIST']
             ))
 
-    # Simple Linear Regression Prediction (5 days)
-    # Get last 30 days for trend line
-    recent = df.tail(30)
-    dates_future = []
-    last_date = df.index[-1]
-    
-    for i in range(1, 6):
-        if is_intraday:
-             # Add minutes/hours? Simplification: just add huge number for now
-             # Intraday prediction is complex, skipping for MVP
-             next_date = last_date # Placeholder
-        else:
-            next_date = last_date + timedelta(days=i)
-            # Skip weekends logic omitted for brevity
-            dates_future.append(next_date.strftime('%Y-%m-%d'))
-
-    # Determine simple direction
-    p1 = recent['Close'].iloc[0]
-    p2 = recent['Close'].iloc[-1]
-    direction = "Bullish" if p2 > p1 else "Bearish"
-    
-    # Generate dummy prediction points based on direction
+    # ---------------------------------------------------------
+    # ARIMA PREDICTION LOGIC (Replacing simple regression)
+    # ---------------------------------------------------------
     prediction = []
-    last_val = p2
-    step = (p2 - p1) / 30  # Average daily move
+    direction = "Neutral"
+    last_val = df['Close'].iloc[-1]
     
-    for d in dates_future:
-        last_val += step
-        prediction.append(PredictionPoint(date=d, value=last_val))
+    try:
+        # 1. Prepare Data: ARIMA works best on a 1D series
+        # Using last 60 points keeps it fast for the API
+        train_data = df['Close'].tail(60).values
+        
+        # 2. Define Model: ARIMA(5,1,0) is a solid general-purpose config for stocks
+        # p=5 (lag), d=1 (differencing), q=0 (moving average)
+        model = ARIMA(train_data, order=(5, 1, 0))
+        model_fit = model.fit()
+        
+        # 3. Forecast next 5 steps
+        forecast = model_fit.forecast(steps=5)
+        
+        # 4. Generate Future Dates
+        dates_future = []
+        last_date = df.index[-1]
+        for i in range(1, 6):
+            if is_intraday:
+                # Add 1 hour per step for intraday fallback (simplification)
+                next_date = last_date + timedelta(hours=i)
+                dates_future.append(int(next_date.timestamp()))
+            else:
+                next_date = last_date + timedelta(days=i)
+                dates_future.append(next_date.strftime('%Y-%m-%d'))
+        
+        # 5. Build Prediction Points
+        for i, val in enumerate(forecast):
+            prediction.append(PredictionPoint(date=str(dates_future[i]), value=val))
+            
+        # 6. Determine Direction based on Forecast
+        predicted_price = forecast[-1]
+        current_price = train_data[-1]
+        
+        if predicted_price > current_price * 1.005: # > 0.5% gain
+            direction = "Bullish"
+        elif predicted_price < current_price * 0.995: # > 0.5% loss
+            direction = "Bearish"
+        else:
+            direction = "Neutral"
 
+        last_val = predicted_price
+
+    except Exception as e:
+        print(f"ARIMA Failed: {e}")
+        # Fallback to simple flat prediction if ARIMA crashes (rare but possible)
+        direction = "Neutral"
+        # Return empty prediction or just a flat line
+        
     return ChartOverlays(
         sma_50=sma_50,
         sma_200=sma_200,
